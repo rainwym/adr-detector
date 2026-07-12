@@ -1,33 +1,33 @@
 import streamlit as st
 import pandas as pd
+from transformers import pipeline
 
-# --- Placeholder "model logic" ---
-# This is a stand-in for your real trained NER/classification model.
-# Later, you'll swap the inside of these two functions to call your
-# fine-tuned BERT model instead. The rest of the app stays the same.
+# --- Model logic ---
+# Uses a pretrained biomedical NER model from Hugging Face to find drug
+# mentions ("Medication") and symptom/reaction mentions ("Sign_symptom").
+# Later, this will be swapped to own model.
 
-KNOWN_DRUGS = [
-    "metformin", "glucophage", "ibuprofen", "advil", "lisinopril",
-    "atorvastatin", "lipitor", "sertraline", "zoloft", "amoxicillin",
-]
 
-REACTION_KEYWORDS = [
-    "nauseous", "nausea", "dizzy", "dizziness", "headache", "rash",
-    "vomiting", "fatigue", "tired", "swelling", "pain", "cramps",
-    "insomnia", "can't sleep", "diarrhea",
-]
+@st.cache_resource
+def load_ner_pipeline():
+    return pipeline(
+        "token-classification",
+        model="d4data/biomedical-ner-all",
+        aggregation_strategy="simple",
+    )
 
 
 def extract_entities(text: str):
-    """Find drug mentions and reaction mentions in the text (placeholder: simple keyword matching)."""
-    text_lower = text.lower()
-    drugs_found = [d for d in KNOWN_DRUGS if d in text_lower]
-    reactions_found = [r for r in REACTION_KEYWORDS if r in text_lower]
+    """Find drug mentions and reaction mentions in the text using the NER model."""
+    ner = load_ner_pipeline()
+    results = ner(text)
+    drugs_found = [r["word"] for r in results if r["entity_group"] == "Medication"]
+    reactions_found = [r["word"] for r in results if r["entity_group"] == "Sign_symptom"]
     return drugs_found, reactions_found
 
 
 def detect_adr(text: str):
-    """Decide whether this text describes an adverse drug reaction (placeholder logic)."""
+    """Decide whether this text describes an adverse drug reaction."""
     drugs, reactions = extract_entities(text)
     is_adr = len(drugs) > 0 and len(reactions) > 0
     return is_adr, drugs, reactions
@@ -39,9 +39,9 @@ st.set_page_config(page_title="ADR Detector", page_icon="💊")
 
 st.title("💊 Adverse Drug Reaction Detector")
 st.write(
-    "Paste a social-media-style post below. This v1 uses simple keyword "
-    "matching as a placeholder — later this will be replaced with a "
-    "fine-tuned NLP model."
+    "Paste a social-media-style post below. This uses a pretrained "
+    "biomedical NER model to find drug and symptom mentions — later "
+    "this will be replaced with a model fine-tuned on your own data."
 )
 
 user_text = st.text_area(
@@ -54,7 +54,8 @@ if st.button("Analyze"):
     if not user_text.strip():
         st.warning("Please enter some text first.")
     else:
-        is_adr, drugs, reactions = detect_adr(user_text)
+        with st.spinner("Loading model and analyzing..."):
+            is_adr, drugs, reactions = detect_adr(user_text)
 
         if is_adr:
             st.success("Possible adverse drug reaction detected!")
