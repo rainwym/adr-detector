@@ -13,16 +13,49 @@ def load_ner_pipeline():
     return pipeline(
         "token-classification",
         model="d4data/biomedical-ner-all",
-        aggregation_strategy="simple",
+        aggregation_strategy="none",
     )
+
+
+def merge_tokens(raw_tokens, text):
+    """Stitch the model's raw sub-word tokens (e.g. 'met' + '##formin')
+    back into whole words, using each token's position in the original
+    text rather than the raw token strings themselves."""
+    entities = []
+    current = None
+    for tok in raw_tokens:
+        tag = tok["entity"]
+        is_subword = tok["word"].startswith("##")
+
+        if tag == "O" and not is_subword:
+            current = None
+            continue
+
+        label = tag.split("-", 1)[-1]
+        continues_prev = is_subword or (
+            current is not None and not tag.startswith("B-") and current["label"] == label
+        )
+
+        if continues_prev and current is not None:
+            current["end"] = tok["end"]
+        else:
+            if current is not None:
+                entities.append(current)
+            current = {"label": label, "start": tok["start"], "end": tok["end"]}
+
+    if current is not None:
+        entities.append(current)
+
+    return [(e["label"], text[e["start"]:e["end"]]) for e in entities]
 
 
 def extract_entities(text: str):
     """Find drug mentions and reaction mentions in the text using the NER model."""
     ner = load_ner_pipeline()
-    results = ner(text)
-    drugs_found = [r["word"] for r in results if r["entity_group"] == "Medication"]
-    reactions_found = [r["word"] for r in results if r["entity_group"] == "Sign_symptom"]
+    raw_tokens = ner(text)
+    merged = merge_tokens(raw_tokens, text)
+    drugs_found = [word for label, word in merged if label == "Medication"]
+    reactions_found = [word for label, word in merged if label == "Sign_symptom"]
     return drugs_found, reactions_found
 
 
