@@ -12,7 +12,7 @@ from transformers import pipeline
 def load_ner_pipeline():
     return pipeline(
         "token-classification",
-        model="d4data/biomedical-ner-all",
+        model="rainwym/adr-ner-cadec",
         aggregation_strategy="none",
     )
 
@@ -54,8 +54,8 @@ def extract_entities(text: str):
     ner = load_ner_pipeline()
     raw_tokens = ner(text)
     merged = merge_tokens(raw_tokens, text)
-    drugs_found = [word for label, word in merged if label == "Medication"]
-    reactions_found = [word for label, word in merged if label == "Sign_symptom"]
+    drugs_found = [word for label, word in merged if label == "Drug"]
+    reactions_found = [word for label, word in merged if label == "ADR"]
     return drugs_found, reactions_found
 
 
