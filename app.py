@@ -3,9 +3,8 @@ import pandas as pd
 from transformers import pipeline
 
 # --- Model logic ---
-# Uses a pretrained biomedical NER model from Hugging Face to find drug
-# mentions ("Medication") and symptom/reaction mentions ("Sign_symptom").
-# Later, this will be swapped to own model.
+# Uses a BERT model fine-tuned on the CADEC dataset (real, informal forum
+# posts) to find drug mentions ("Drug") and adverse reaction mentions ("ADR").
 
 
 @st.cache_resource
@@ -72,9 +71,9 @@ st.set_page_config(page_title="ADR Detector", page_icon="💊")
 
 st.title("💊 Adverse Drug Reaction Detector")
 st.write(
-    "Paste a social-media-style post below. This uses a pretrained "
-    "biomedical NER model to find drug and symptom mentions — later "
-    "this will be replaced with a model fine-tuned on your own data."
+    "Paste a social-media-style post below. This uses a BERT model "
+    "fine-tuned on real forum posts (the CADEC dataset) to find drug "
+    "and adverse reaction mentions."
 )
 
 user_text = st.text_area(
