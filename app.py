@@ -1,10 +1,27 @@
 import streamlit as st
 import pandas as pd
 from transformers import pipeline
+from pypdf import PdfReader
+import docx
 
 # --- Model logic ---
 # Uses a BERT model fine-tuned on the CADEC dataset (real, informal forum
 # posts) to find drug mentions ("Drug") and adverse reaction mentions ("ADR").
+
+
+def read_uploaded_file(uploaded_file):
+    """Extract raw text from an uploaded .pdf, .docx, or .txt file."""
+    name = uploaded_file.name.lower()
+
+    if name.endswith(".pdf"):
+        reader = PdfReader(uploaded_file)
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    if name.endswith(".docx"):
+        document = docx.Document(uploaded_file)
+        return "\n".join(paragraph.text for paragraph in document.paragraphs)
+
+    return uploaded_file.read().decode("utf-8")
 
 
 @st.cache_resource
@@ -46,6 +63,28 @@ def merge_tokens(raw_tokens, text):
         entities.append(current)
 
     return [(e["label"], text[e["start"]:e["end"]]) for e in entities]
+
+
+def chunk_text(text: str, max_chars: int = 800):
+    """Split long text into pieces that safely fit under the model's token
+    limit, breaking on whole words only."""
+    words = text.split()
+    chunks = []
+    current_words = []
+    current_len = 0
+
+    for word in words:
+        if current_len + len(word) + 1 > max_chars and current_words:
+            chunks.append(" ".join(current_words))
+            current_words = []
+            current_len = 0
+        current_words.append(word)
+        current_len += len(word) + 1
+
+    if current_words:
+        chunks.append(" ".join(current_words))
+
+    return chunks
 
 
 def extract_entities(text: str):
