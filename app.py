@@ -88,12 +88,18 @@ def chunk_text(text: str, max_chars: int = 800):
 
 
 def extract_entities(text: str):
-    """Find drug mentions and reaction mentions in the text using the NER model."""
+    """Find drug mentions and reaction mentions in the text using the NER model.
+    Long text is processed in chunks so the whole document gets analyzed,
+    not just the part that fits in one model call."""
     ner = load_ner_pipeline()
-    raw_tokens = ner(text)
-    merged = merge_tokens(raw_tokens, text)
-    drugs_found = [word for label, word in merged if label == "Drug"]
-    reactions_found = [word for label, word in merged if label == "ADR"]
+    drugs_found, reactions_found = [], []
+
+    for chunk in chunk_text(text):
+        raw_tokens = ner(chunk)
+        merged = merge_tokens(raw_tokens, chunk)
+        drugs_found += [word for label, word in merged if label == "Drug"]
+        reactions_found += [word for label, word in merged if label == "ADR"]
+
     return drugs_found, reactions_found
 
 
@@ -115,8 +121,14 @@ st.write(
     "and adverse reaction mentions."
 )
 
+uploaded_file = st.file_uploader(
+    "Or upload a document (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"]
+)
+extracted_text = read_uploaded_file(uploaded_file) if uploaded_file is not None else ""
+
 user_text = st.text_area(
     "Post text",
+    value=extracted_text,
     placeholder="e.g. started metformin last week and I can't stop feeling nauseous",
     height=120,
 )
