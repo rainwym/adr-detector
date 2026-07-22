@@ -1,3 +1,4 @@
+import re
 import streamlit as st
 import pandas as pd
 from transformers import pipeline
@@ -9,19 +10,29 @@ import docx
 # posts) to find drug mentions ("Drug") and adverse reaction mentions ("ADR").
 
 
+def clean_text(text: str) -> str:
+    """Undo common PDF text-extraction artifacts: rejoin words that were
+    split by a line-wrap hyphen (e.g. 'dys- tonia' -> 'dystonia'), and
+    collapse repeated whitespace down to single spaces."""
+    text = re.sub(r"(?<=[a-z])-\s+(?=[a-z])", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
 def read_uploaded_file(uploaded_file):
     """Extract raw text from an uploaded .pdf, .docx, or .txt file."""
     name = uploaded_file.name.lower()
 
     if name.endswith(".pdf"):
         reader = PdfReader(uploaded_file)
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
-
-    if name.endswith(".docx"):
+        raw_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    elif name.endswith(".docx"):
         document = docx.Document(uploaded_file)
-        return "\n".join(paragraph.text for paragraph in document.paragraphs)
+        raw_text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    else:
+        raw_text = uploaded_file.read().decode("utf-8")
 
-    return uploaded_file.read().decode("utf-8")
+    return clean_text(raw_text)
 
 
 @st.cache_resource
