@@ -6,8 +6,7 @@ from pypdf import PdfReader
 import docx
 
 # --- Model logic ---
-# Uses a BERT model fine-tuned on the CADEC dataset (real, informal forum
-# posts) to find drug mentions ("Drug") and adverse reaction mentions ("ADR").
+# Uses BERT model fine-tuned on the CADEC dataset to find drug mentions ("Drug") and adverse reaction mentions ("ADR").
 
 
 def clean_text(text: str) -> str:
@@ -121,9 +120,9 @@ def detect_adr(text: str):
     return is_adr, drugs, reactions
 
 
-# --- Frontend (the webpage itself) ---
+# --- Frontend ---
 
-st.set_page_config(page_title="ADR Detector", page_icon="💊")
+st.set_page_config(page_title="ADR Detector", page_icon="💊", layout="wide")
 
 st.title("💊 Adverse Drug Reaction Detector")
 st.write(
@@ -132,39 +131,55 @@ st.write(
     "and adverse reaction mentions."
 )
 
-uploaded_file = st.file_uploader(
-    "Or upload a document (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"]
-)
-extracted_text = read_uploaded_file(uploaded_file) if uploaded_file is not None else ""
+input_col, results_col = st.columns(2)
 
-user_text = st.text_area(
-    "Post text",
-    value=extracted_text,
-    placeholder="e.g. started metformin last week and I can't stop feeling nauseous",
-    height=120,
-)
+with input_col:
+    st.subheader("Input")
 
-if st.button("Analyze"):
-    if not user_text.strip():
-        st.warning("Please enter some text first.")
+    # Reserve the text box's spot now, so it renders above the uploader
+    # below -- we fill it in further down, once we know whether a file
+    # was uploaded.
+    post_text_slot = st.empty()
+
+    uploaded_file = st.file_uploader(
+        "Or upload a document (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"]
+    )
+    extracted_text = read_uploaded_file(uploaded_file) if uploaded_file is not None else ""
+
+    user_text = post_text_slot.text_area(
+        "Post text",
+        value=extracted_text,
+        placeholder="e.g. started metformin last week and I can't stop feeling nauseous",
+        height=120,
+    )
+
+    analyze_clicked = st.button("Analyze")
+
+with results_col:
+    st.subheader("Results")
+
+    if analyze_clicked:
+        if not user_text.strip():
+            st.warning("Please enter some text first.")
+        else:
+            with st.spinner("Loading model and analyzing..."):
+                is_adr, drugs, reactions = detect_adr(user_text)
+
+            if is_adr:
+                st.success("Possible adverse drug reaction detected!")
+            else:
+                st.info("No adverse drug reaction detected.")
+
+            results = pd.DataFrame(
+                {
+                    "Type": ["Drug"] * len(drugs) + ["Reaction"] * len(reactions),
+                    "Text": drugs + reactions,
+                }
+            )
+
+            if results.empty:
+                st.write("Nothing recognized in this text yet.")
+            else:
+                st.table(results)
     else:
-        with st.spinner("Loading model and analyzing..."):
-            is_adr, drugs, reactions = detect_adr(user_text)
-
-        if is_adr:
-            st.success("Possible adverse drug reaction detected!")
-        else:
-            st.info("No adverse drug reaction detected.")
-
-        st.subheader("Extracted entities")
-        results = pd.DataFrame(
-            {
-                "Type": ["Drug"] * len(drugs) + ["Reaction"] * len(reactions),
-                "Text": drugs + reactions,
-            }
-        )
-
-        if results.empty:
-            st.write("Nothing recognized in this text yet.")
-        else:
-            st.table(results)
+        st.write("Results will appear here once you click Analyze.")
